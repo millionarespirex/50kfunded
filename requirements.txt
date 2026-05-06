@@ -1,6 +1,4 @@
 pyTelegramBotAPI
 yfinance
 pandas
-pandas-ta
 flask
-gunicorn
