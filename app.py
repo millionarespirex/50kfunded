@@ -14,31 +14,46 @@ def home(): return "Bot is alive!"
 def run(): app.run(host='0.0.0.0', port=8080)
 
 def analyze_market(ticker):
-    df = yf.download(ticker, interval="5m", period="1d")
-    current_price = df['Close'].iloc[-1]
-    
-    # Simple manual RSI-style bias
-    avg_gain = df['Close'].diff().dropna().clip(lower=0).mean()
-    avg_loss = (-df['Close'].diff().dropna().clip(upper=0)).mean()
-    rs = avg_gain / avg_loss if avg_loss != 0 else 0
-    rsi = 100 - (100 / (1 + rs))
+    try:
+        # Pulling 1 day of 15m data for a better trend view
+        df = yf.download(ticker, interval="15m", period="1d")
+        if df.empty: return "Market data currently unavailable. Try again in a minute."
+        
+        current_price = float(df['Close'].iloc[-1])
+        open_price = float(df['Open'].iloc[0])
+        
+        # Super simple bias: Is today green or red?
+        bias = "BULLISH" if current_price > open_price else "BEARISH"
+        
+        # $650 Plan Math (approx 32.5 points on NQ)
+        if bias == "BULLISH":
+            tp1, tp_final, sl = current_price + 17.5, current_price + 32.5, current_price - 20
+        else:
+            tp1, tp_final, sl = current_price - 17.5, current_price - 32.5, current_price + 20
 
-    bias = "BULLISH" if rsi > 50 else "BEARISH"
-    tp1, tp_final, sl = (current_price + 17.5, current_price + 32.5, current_price - 15) if bias == "BULLISH" else (current_price - 17.5, current_price - 32.5, current_price + 15)
-
-    return (f"📊 *Analysis for {ticker}*\nBias: {bias}\nEntry: {current_price:.2f}\n\n🎯 TP1: {tp1:.2f} (+$350)\n🎯 TP 2/3: {tp_final:.2f}\n🛑 SL: {sl:.2f}\n\n💼 Contracts: 2 Minis")
+        return (f"📊 *Analysis for {ticker}*\n"
+                f"Bias: {bias}\n"
+                f"Entry: {current_price:.2f}\n\n"
+                f"🎯 TP1: {tp1:.2f} (+$350)\n"
+                f"🎯 TP 2/3: {tp_final:.2f} (+$300)\n"
+                f"🛑 SL: {sl:.2f}\n\n"
+                f"💼 Contracts: 2 Minis")
+    except Exception as e:
+        return f"Error fetching data: {str(e)}"
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    markup = telebot.types.ReplyKeyboardMarkup(row_width=2)
+    markup = telebot.types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add(telebot.types.KeyboardButton('MNQ (Nasdaq)'), telebot.types.KeyboardButton('MES (S&P500)'))
-    bot.send_message(message.chat.id, "Select asset:", reply_markup=markup)
+    bot.send_message(message.chat.id, "Select asset to analyze:", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     ticker_map = {"MNQ (Nasdaq)": "NQ=F", "MES (S&P500)": "ES=F"}
     if message.text in ticker_map:
-        bot.send_message(message.chat.id, analyze_market(ticker_map[message.text]), parse_mode="Markdown")
+        bot.send_message(message.chat.id, "Analyzing live markets... 📈")
+        result = analyze_market(ticker_map[message.text])
+        bot.send_message(message.chat.id, result, parse_mode="Markdown")
 
 if __name__ == "__main__":
     Thread(target=run).start()
