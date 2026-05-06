@@ -49,4 +49,22 @@ def handle_message(message):
         result = analyze_market(ticker_map[message.text])
         bot.send_message(message.chat.id, result, parse_mode="Markdown")
 
-bot.infinity_polling()
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+if __name__ == "__main__":
+    keep_alive()
+    bot.infinity_polling()
